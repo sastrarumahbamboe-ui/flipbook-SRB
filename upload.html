@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Upload Majalah - SRB</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f1f1f1;
+      color: #222;
+    }
+
+    header {
+      background: #111;
+      color: white;
+      text-align: center;
+      padding: 25px 15px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-family: Georgia, serif;
+    }
+
+    header p {
+      color: #ccc;
+    }
+
+    nav {
+      background: #b40000;
+      text-align: center;
+      padding: 10px;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      margin: 0 12px;
+    }
+
+    .container {
+      max-width: 650px;
+      margin: 35px auto;
+      padding: 0 15px;
+    }
+
+    .box {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.12);
+    }
+
+    h2 {
+      margin-top: 0;
+      font-family: Georgia, serif;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-top: 18px;
+      margin-bottom: 7px;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 15px;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 25px;
+      padding: 14px;
+      border: 0;
+      border-radius: 5px;
+      background: #b40000;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #880000;
+    }
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 5px;
+      display: none;
+    }
+
+    .success {
+      background: #e8f5e9;
+      color: #176b20;
+    }
+
+    .error {
+      background: #ffebee;
+      color: #b00020;
+    }
+
+    .back {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      color: #b40000;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>JURNAL SASTRA RUMAH BAMBOE</h1>
+  <p>Majalah Sastra & Kebudayaan</p>
+</header>
+
+<nav>
+  <a href="index.html">BERANDA</a>
+  <a href="upload.html">UPLOAD</a>
+</nav>
+
+<div class="container">
+
+  <div class="box">
+
+    <h2>Upload Majalah</h2>
+
+    <p>
+      Silakan unggah majalah atau karya sastra dalam format PDF.
+    </p>
+
+    <form id="uploadForm">
+
+      <label>Judul Majalah</label>
+
+      <input
+        type="text"
+        id="title"
+        placeholder="Contoh: SRB Edisi 02"
+        required
+      >
+
+      <label>Deskripsi</label>
+
+      <textarea
+        id="description"
+        placeholder="Tuliskan keterangan singkat tentang majalah..."
+      ></textarea>
+
+      <label>File PDF</label>
+
+      <input
+        type="file"
+        id="pdfFile"
+        accept="application/pdf"
+        required
+      >
+
+      <label>Cover Majalah (opsional)</label>
+
+      <input
+        type="file"
+        id="coverFile"
+        accept="image/*"
+      >
+
+      <button type="submit" id="uploadButton">
+        UPLOAD MAJALAH
+      </button>
+
+    </form>
+
+    <div id="status"></div>
+
+    <a class="back" href="index.html">
+      ← Kembali ke halaman utama
+    </a>
+
+  </div>
+
+</div>
+
+<script>
+
+const supabaseClient =
+  window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+  );
+
+const form = document.getElementById("uploadForm");
+const button = document.getElementById("uploadButton");
+const statusBox = document.getElementById("status");
+
+function showStatus(message, type) {
+
+  statusBox.style.display = "block";
+  statusBox.className = type;
+  statusBox.innerHTML = message;
+
+}
+
+form.addEventListener("submit", async function(event) {
+
+  event.preventDefault();
+
+  const title =
+    document.getElementById("title").value.trim();
+
+  const description =
+    document.getElementById("description").value.trim();
+
+  const pdfFile =
+    document.getElementById("pdfFile").files[0];
+
+  const coverFile =
+    document.getElementById("coverFile").files[0];
+
+  if (!pdfFile) {
+
+    showStatus(
+      "Silakan pilih file PDF.",
+      "error"
+    );
+
+    return;
+  }
+
+  if (pdfFile.type !== "application/pdf") {
+
+    showStatus(
+      "File harus berformat PDF.",
+      "error"
+    );
+
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "MENGUNGGAH...";
+
+  showStatus(
+    "Sedang mengunggah file. Mohon tunggu...",
+    "success"
+  );
+
+  try {
+
+    const timestamp = Date.now();
+
+    const safeName =
+      pdfFile.name
+        .replace(/[^a-zA-Z0-9._-]/g, "-");
+
+    const pdfPath =
+      "pdf/" + timestamp + "-" + safeName;
+
+    const pdfUpload =
+      await supabaseClient
+        .storage
+        .from("magazines")
+        .upload(
+          pdfPath,
+          pdfFile,
+          {
+            contentType: "application/pdf",
+            upsert: false
+          }
+        );
+
+    if (pdfUpload.error) {
+      throw pdfUpload.error;
+    }
+
+    const pdfUrl =
+      supabaseClient
+        .storage
+        .from("magazines")
+        .getPublicUrl(pdfPath)
+        .data
+        .publicUrl;
+
+    let coverUrl = null;
+
+    if (coverFile) {
+
+      const coverName =
+        coverFile.name
+          .replace(/[^a-zA-Z0-9._-]/g, "-");
+
+      const coverPath =
+        "covers/" + timestamp + "-" + coverName;
+
+      const coverUpload =
+        await supabaseClient
+          .storage
+          .from("magazines")
+          .upload(
+            coverPath,
+            coverFile,
+            {
+              contentType: coverFile.type,
+              upsert: false
+            }
+          );
+
+      if (coverUpload.error) {
+        throw coverUpload.error;
+      }
+
+      coverUrl =
+        supabaseClient
+          .storage
+          .from("magazines")
+          .getPublicUrl(coverPath)
+          .data
+          .publicUrl;
+    }
+
+    const { data, error } =
+      await supabaseClient
+        .from("magazines")
+        .insert([
+          {
+            title: title,
+            description: description,
+            pdf_url: pdfUrl,
+            cover_url: coverUrl
+          }
+        ])
+        .select()
+        .single();
+
+    if (error) {
+      throw error;
+    }
+
+    showStatus(
+      `
+      <strong>Upload berhasil!</strong><br><br>
+
+      Majalah <strong>${escapeHtml(title)}</strong>
+      sudah tersimpan.<br><br>
+
+      <a href="reader.html?id=${data.id}">
+        Buka Majalah
+      </a>
+      `,
+      "success"
+    );
+
+    form.reset();
+
+  } catch (error) {
+
+    console.error(error);
+
+    showStatus(
+      "Upload gagal: " + escapeHtml(error.message),
+      "error"
+    );
+
+  }
+
+  button.disabled = false;
+  button.textContent = "UPLOAD MAJALAH";
+
+});
+
+function escapeHtml(text) {
+
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+}
+
+</script>
+
+</body>
+      </html>
