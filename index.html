@@ -1,0 +1,16 @@
+<!doctype html><html lang="id"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flipbook SRB</title><style>
+*{box-sizing:border-box}body{margin:0;background:#171717;color:#eee;font:14px system-ui}header{height:58px;background:#090909;display:flex;align-items:center;padding:0 12px;gap:10px;position:sticky;top:0;z-index:2}main{height:calc(100vh - 58px);display:flex;flex-direction:column}.stage{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:10px}.page{background:#fff;box-shadow:0 8px 30px #000;max-width:96%;max-height:82vh}.page canvas{display:block;max-width:100%;max-height:82vh}.bar{padding:10px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;background:#0d0d0d}button{padding:9px 13px;border:1px solid #444;background:#222;color:#fff;border-radius:7px}.title{font-weight:700}.spacer{flex:1}
+</style></head><body><header><span class="title" id="title">FLIPBOOK SRB</span><span class="spacer"></span><button id="share">Bagikan</button><button id="full">Fullscreen</button></header><main><div class="stage"><div class="page"><canvas id="c"></canvas></div></div><div class="bar"><button id="prev">←</button><span id="num">0 / 0</span><button id="next">→</button><button id="minus">−</button><button id="plus">+</button></div></main>
+<script type="module">
+import {createClient} from "https://esm.sh/@supabase/supabase-js@2";import {SUPABASE_URL,SUPABASE_ANON_KEY} from "../admin/config.js";
+import * as pdfjs from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs";
+pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
+const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY), id=new URLSearchParams(location.search).get("id");let pdf,p=1,scale=1;
+async function start(){if(!id)return;let {data:m,error}=await sb.from("magazines").select("*").eq("id",id).single();if(error)return document.getElementById("title").textContent="Majalah tidak ditemukan";
+document.title=m.title+" — Flipbook SRB";document.getElementById("title").textContent=m.title+" "+(m.edition||"");
+const {data}=sb.storage.from("magazines").getPublicUrl(m.file_path);pdf=await pdfjs.getDocument(data.publicUrl).promise;draw();}
+async function draw(){let x=await pdf.getPage(p),v=x.getViewport({scale:scale*Math.min((innerWidth-30)/x.getViewport({scale:1}).width, (innerHeight-150)/x.getViewport({scale:1}).height)});let c=document.getElementById("c");c.width=v.width;c.height=v.height;await x.render({canvasContext:c.getContext("2d"),viewport:v}).promise;document.getElementById("num").textContent=p+" / "+pdf.numPages}
+prev.onclick=()=>{if(p>1){p--;draw()}};next.onclick=()=>{if(p<pdf?.numPages){p++;draw()}};plus.onclick=()=>{scale=Math.min(2,scale+.15);draw()};minus.onclick=()=>{scale=Math.max(.5,scale-.15);draw()};full.onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();share.onclick=async()=>navigator.share?navigator.share({title:document.title,url:location.href}):navigator.clipboard.writeText(location.href);addEventListener("keydown",e=>{if(e.key==="ArrowRight")next.click();if(e.key==="ArrowLeft")prev.click()});start();
+</script></body></html>
