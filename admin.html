@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Admin - Jurnal Sastra Rumah Bamboe</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f1f1f1;
+      color: #222;
+    }
+
+    header {
+      background: #111;
+      color: white;
+      text-align: center;
+      padding: 25px 15px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-family: Georgia, serif;
+    }
+
+    header p {
+      color: #ccc;
+    }
+
+    nav {
+      background: #b40000;
+      padding: 10px;
+      text-align: center;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      margin: 0 10px;
+      font-weight: bold;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 30px auto;
+      padding: 15px;
+    }
+
+    .box {
+      background: white;
+      padding: 25px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.12);
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      font-family: Georgia, serif;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 7px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    button {
+      padding: 11px 16px;
+      border: none;
+      border-radius: 5px;
+      background: #b40000;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    button:hover {
+      background: #880000;
+    }
+
+    .logout {
+      background: #333;
+    }
+
+    .magazine {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 18px;
+      margin-top: 15px;
+    }
+
+    .magazine h3 {
+      margin-top: 0;
+      font-family: Georgia, serif;
+    }
+
+    .url-box {
+      background: #f5f5f5;
+      padding: 10px;
+      word-break: break-all;
+      margin: 8px 0;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .embed-box {
+      width: 100%;
+      min-height: 90px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    .delete {
+      background: #8b0000;
+    }
+
+    #loginBox {
+      max-width: 450px;
+      margin: 40px auto;
+    }
+
+    #adminBox {
+      display: none;
+    }
+
+    #status {
+      margin-top: 15px;
+      padding: 12px;
+      display: none;
+      border-radius: 5px;
+    }
+
+    .success {
+      display: block !important;
+      background: #e8f5e9;
+      color: #176b20;
+    }
+
+    .error {
+      display: block !important;
+      background: #ffebee;
+      color: #b00020;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>JURNAL SASTRA RUMAH BAMBOE</h1>
+  <p>Panel Administrator</p>
+</header>
+
+<nav>
+  <a href="index.html">BERANDA</a>
+  <a href="upload.html">UPLOAD</a>
+</nav>
+
+<div class="container">
+
+  <!-- LOGIN -->
+  <div class="box" id="loginBox">
+
+    <h2>Login Admin</h2>
+
+    <p>Masuk menggunakan akun admin yang telah dibuat di Supabase.</p>
+
+    <input
+      type="email"
+      id="email"
+      placeholder="Email admin"
+    >
+
+    <input
+      type="password"
+      id="password"
+      placeholder="Password"
+    >
+
+    <button onclick="login()">
+      LOGIN
+    </button>
+
+    <div id="loginStatus"></div>
+
+  </div>
+
+
+  <!-- ADMIN -->
+  <div id="adminBox">
+
+    <div class="box">
+
+      <h2>Dashboard Admin</h2>
+
+      <p id="adminEmail"></p>
+
+      <button class="logout" onclick="logout()">
+        LOGOUT
+      </button>
+
+    </div>
+
+
+    <div class="box">
+
+      <h2>Daftar Majalah</h2>
+
+      <div id="magazines">
+        Memuat data...
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+
+const supabaseClient =
+  window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+  );
+
+
+async function checkSession() {
+
+  const { data } =
+    await supabaseClient.auth.getSession();
+
+  if (data.session) {
+
+    showAdmin(data.session);
+
+  }
+
+}
+
+
+async function login() {
+
+  const email =
+    document.getElementById("email").value.trim();
+
+  const password =
+    document.getElementById("password").value;
+
+  if (!email || !password) {
+
+    showLoginStatus(
+      "Email dan password harus diisi.",
+      "error"
+    );
+
+    return;
+
+  }
+
+
+  const { data, error } =
+    await supabaseClient.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+
+
+  if (error) {
+
+    showLoginStatus(
+      "Login gagal: " + error.message,
+      "error"
+    );
+
+    return;
+
+  }
+
+
+  showAdmin(data.session);
+
+}
+
+
+function showAdmin(session) {
+
+  document.getElementById("loginBox").style.display =
+    "none";
+
+  document.getElementById("adminBox").style.display =
+    "block";
+
+  document.getElementById("adminEmail").textContent =
+    "Login sebagai: " + session.user.email;
+
+  loadMagazines();
+
+}
+
+
+async function logout() {
+
+  await supabaseClient.auth.signOut();
+
+  location.reload();
+
+}
+
+
+async function loadMagazines() {
+
+  const container =
+    document.getElementById("magazines");
+
+  container.innerHTML =
+    "Memuat majalah...";
+
+
+  const { data, error } =
+    await supabaseClient
+      .from("magazines")
+      .select("*")
+      .order("created_at", {
+        ascending: false
+      });
+
+
+  if (error) {
+
+    container.innerHTML =
+      "Gagal memuat data: " +
+      escapeHtml(error.message);
+
+    return;
+
+  }
+
+
+  if (!data || data.length === 0) {
+
+    container.innerHTML =
+      "<p>Belum ada majalah.</p>";
+
+    return;
+
+  }
+
+
+  container.innerHTML = "";
+
+
+  data.forEach(magazine => {
+
+    const readerUrl =
+      new URL(
+        "reader.html?id=" + magazine.id,
+        window.location.href
+      ).href;
+
+
+    const embedCode =
+      `<iframe src="${readerUrl}" width="100%" height="700" style="border:0;" allowfullscreen></iframe>`;
+
+
+    const div =
+      document.createElement("div");
+
+    div.className = "magazine";
+
+
+    div.innerHTML = `
+
+      <h3>
+        ${escapeHtml(magazine.title)}
+      </h3>
+
+      <p>
+        ${escapeHtml(
+          magazine.description || ""
+        )}
+      </p>
+
+      <strong>URL Majalah:</strong>
+
+      <div class="url-box">
+        ${escapeHtml(readerUrl)}
+      </div>
+
+      <button onclick='copyText(${JSON.stringify(readerUrl)})'>
+        SALIN URL
+      </button>
+
+      <br><br>
+
+      <strong>Kode Embed:</strong>
+
+      <textarea
+        class="embed-box"
+        readonly
+      >${escapeHtml(embedCode)}</textarea>
+
+      <button onclick='copyText(${JSON.stringify(embedCode)})'>
+        SALIN KODE EMBED
+      </button>
+
+      <br><br>
+
+      <a
+        href="${escapeHtml(readerUrl)}"
+        target="_blank"
+      >
+        BUKA MAJALAH
+      </a>
+
+      <br><br>
+
+      <button
+        class="delete"
+        onclick="deleteMagazine('${magazine.id}')"
+      >
+        HAPUS MAJALAH
+      </button>
+
+    `;
+
+
+    container.appendChild(div);
+
+  });
+
+}
+
+
+async function deleteMagazine(id) {
+
+  const yakin =
+    confirm(
+      "Yakin ingin menghapus majalah ini?"
+    );
+
+  if (!yakin) return;
+
+
+  const { error } =
+    await supabaseClient
+      .from("magazines")
+      .delete()
+      .eq("id", id);
+
+
+  if (error) {
+
+    alert(
+      "Gagal menghapus: " +
+      error.message
+    );
+
+    return;
+
+  }
+
+
+  alert("Majalah berhasil dihapus.");
+
+  loadMagazines();
+
+}
+
+
+async function copyText(text) {
+
+  try {
+
+    await navigator.clipboard.writeText(text);
+
+    alert("Berhasil disalin.");
+
+  } catch (error) {
+
+    alert(
+      "Tidak dapat menyalin otomatis. Silakan salin secara manual."
+    );
+
+  }
+
+}
+
+
+function showLoginStatus(message, type) {
+
+  const box =
+    document.getElementById("loginStatus");
+
+  box.textContent = message;
+
+  box.className = type;
+
+}
+
+
+function escapeHtml(text) {
+
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+}
+
+
+checkSession();
+
+</script>
+
+</body>
+</html>
