@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Membaca Majalah - SRB</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #222;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    header {
+      background: #111;
+      padding: 15px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-family: Georgia, serif;
+      font-size: 22px;
+    }
+
+    #title {
+      margin-top: 5px;
+      color: #ccc;
+      font-size: 14px;
+    }
+
+    .toolbar {
+      background: #b40000;
+      padding: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 7px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    button,
+    .toolbar a {
+      border: none;
+      background: white;
+      color: #222;
+      padding: 9px 13px;
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    button:hover,
+    .toolbar a:hover {
+      background: #ddd;
+    }
+
+    #pageInfo {
+      padding: 0 8px;
+      font-weight: bold;
+    }
+
+    #reader {
+      min-height: calc(100vh - 145px);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+      overflow: auto;
+    }
+
+    #pdfCanvas {
+      background: white;
+      box-shadow: 0 3px 20px rgba(0,0,0,.5);
+      max-width: 100%;
+      height: auto;
+    }
+
+    #loading {
+      text-align: center;
+      padding: 50px 20px;
+      font-size: 18px;
+    }
+
+    #error {
+      display: none;
+      max-width: 700px;
+      margin: 40px auto;
+      padding: 25px;
+      background: #401010;
+      border: 1px solid #a33;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+
+      header h1 {
+        font-size: 18px;
+      }
+
+      .toolbar {
+        gap: 4px;
+      }
+
+      button,
+      .toolbar a {
+        padding: 8px 9px;
+        font-size: 12px;
+      }
+
+      #reader {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+
+  <h1>JURNAL SASTRA RUMAH BAMBOE</h1>
+
+  <div id="title">
+    Memuat majalah...
+  </div>
+
+</header>
+
+<div class="toolbar">
+
+  <button onclick="previousPage()">
+    ◀ Sebelumnya
+  </button>
+
+  <span id="pageInfo">
+    0 / 0
+  </span>
+
+  <button onclick="nextPage()">
+    Berikutnya ▶
+  </button>
+
+  <button onclick="zoomOut()">
+    −
+  </button>
+
+  <button onclick="zoomIn()">
+    +
+  </button>
+
+  <button onclick="fullscreenReader()">
+    ⛶
+  </button>
+
+  <button onclick="shareMagazine()">
+    Bagikan
+  </button>
+
+  <a href="index.html">
+    Beranda
+  </a>
+
+</div>
+
+<div id="loading">
+  Memuat majalah...
+</div>
+
+<div id="error">
+  <h2>Majalah tidak dapat dibuka</h2>
+  <p id="errorText"></p>
+  <a href="index.html" style="color:white;">
+    Kembali ke Beranda
+  </a>
+</div>
+
+<div id="reader">
+
+  <canvas id="pdfCanvas"></canvas>
+
+</div>
+
+<script>
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+
+  const supabaseClient =
+    window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY
+    );
+
+
+  const params =
+    new URLSearchParams(window.location.search);
+
+  const magazineId =
+    params.get("id");
+
+
+  let pdfDoc = null;
+
+  let pageNum = 1;
+
+  let scale = 1.2;
+
+
+  async function loadMagazine() {
+
+    if (!magazineId) {
+
+      showError(
+        "ID majalah tidak ditemukan."
+      );
+
+      return;
+    }
+
+
+    const { data, error } =
+      await supabaseClient
+        .from("magazines")
+        .select("*")
+        .eq("id", magazineId)
+        .single();
+
+
+    if (error || !data) {
+
+      showError(
+        error
+          ? error.message
+          : "Majalah tidak ditemukan."
+      );
+
+      return;
+    }
+
+
+    document.getElementById("title").textContent =
+      data.title;
+
+
+    document.title =
+      data.title + " - Jurnal Sastra Rumah Bamboe";
+
+
+    try {
+
+      pdfDoc =
+        await pdfjsLib.getDocument(
+          data.pdf_url
+        ).promise;
+
+
+      document.getElementById("loading").style.display =
+        "none";
+
+
+      document.getElementById("reader").style.display =
+        "flex";
+
+
+      document.getElementById("pageInfo").textContent =
+        "1 / " + pdfDoc.numPages;
+
+
+      renderPage(pageNum);
+
+    } catch (error) {
+
+      showError(
+        "File PDF tidak dapat dibuka: " +
+        error.message
+      );
+
+    }
+
+  }
+
+
+  async function renderPage(num) {
+
+    if (!pdfDoc) return;
+
+
+    const page =
+      await pdfDoc.getPage(num);
+
+
+    const viewport =
+      page.getViewport({
+        scale: scale
+      });
+
+
+    const canvas =
+      document.getElementById("pdfCanvas");
+
+
+    const context =
+      canvas.getContext("2d");
+
+
+    canvas.width =
+      viewport.width;
+
+
+    canvas.height =
+      viewport.height;
+
+
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+
+
+    document.getElementById("pageInfo").textContent =
+      num + " / " + pdfDoc.numPages;
+
+  }
+
+
+  function previousPage() {
+
+    if (!pdfDoc || pageNum <= 1)
+      return;
+
+    pageNum--;
+
+    renderPage(pageNum);
+
+    window.scrollTo(0, 0);
+
+  }
+
+
+  function nextPage() {
+
+    if (!pdfDoc || pageNum >= pdfDoc.numPages)
+      return;
+
+    pageNum++;
+
+    renderPage(pageNum);
+
+    window.scrollTo(0, 0);
+
+  }
+
+
+  function zoomIn() {
+
+    scale += 0.2;
+
+    renderPage(pageNum);
+
+  }
+
+
+  function zoomOut() {
+
+    if (scale <= 0.6)
+      return;
+
+    scale -= 0.2;
+
+    renderPage(pageNum);
+
+  }
+
+
+  function fullscreenReader() {
+
+    const reader =
+      document.getElementById("reader");
+
+
+    if (!document.fullscreenElement) {
+
+      reader.requestFullscreen();
+
+    } else {
+
+      document.exitFullscreen();
+
+    }
+
+  }
+
+
+  async function shareMagazine() {
+
+    const shareData = {
+
+      title:
+        document.title,
+
+      text:
+        "Baca majalah di Jurnal Sastra Rumah Bamboe",
+
+      url:
+        window.location.href
+
+    };
+
+
+    try {
+
+      if (navigator.share) {
+
+        await navigator.share(shareData);
+
+      } else {
+
+        await navigator.clipboard.writeText(
+          window.location.href
+        );
+
+        alert(
+          "URL majalah sudah disalin."
+        );
+
+      }
+
+    } catch (error) {
+
+      console.log(error);
+
+    }
+
+  }
+
+
+  function showError(message) {
+
+    document.getElementById("loading").style.display =
+      "none";
+
+    document.getElementById("reader").style.display =
+      "none";
+
+    document.getElementById("error").style.display =
+      "block";
+
+    document.getElementById("errorText").textContent =
+      message;
+
+  }
+
+
+  document.addEventListener(
+    "keydown",
+    function(event) {
+
+      if (event.key === "ArrowLeft") {
+        previousPage();
+      }
+
+      if (event.key === "ArrowRight") {
+        nextPage();
+      }
+
+    }
+  );
+
+
+  loadMagazine();
+
+</script>
+
+</body>
+  </html>
